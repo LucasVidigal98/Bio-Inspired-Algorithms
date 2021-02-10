@@ -15,5 +15,7 @@ def plot(history, precision, dimension):
               str(precision) + ' Dimensão = ' + str(dimension))
     plt.xlabel('Gerações')
     plt.ylabel('Melhor Fit')
-    plt.savefig('Graphics' + sep + 'Precisao=' +
-                str(precision) + 'Dimensao=' + str(dimension))
+    path = 'Graphics' + sep + 'Precisao=' + \
+        str(precision) + 'Dimensao=' + str(dimension)
+    print('Imagem gerada em -> ' + path)
+    plt.savefig(path)
