@@ -1,52 +1,58 @@
 import random
-import math
 import numpy as np
-import operator
-from SortObject import SortObject
 
 
 class AG:
-    def __init__(self, npop, ngen, nelite, has_elite, dimension, pc, pm, alpha, beta):
+    def __init__(self, npop, ngen, nelite, has_elite, pc, pm, tsp):
         self.npop = npop
         self.ngen = ngen
         self.nelite = nelite
-        self.dimension = dimension
         self.pc = pc
         self.pm = pm
-        self.xmin = -2
-        self.xmax = 2
-        self.alpha = alpha
-        self.beta = beta
+        self.tsp = tsp
+        self.stagnation = 0
+        self.high_mutation_interation = 0
 
         self.pop = list()
         self.inter_pop = list()
         self.elite = list()
         self.has_elite = has_elite
         self.fit_elite = 0
+        print('aqui')
         for i in range(npop):
             genes = list()
-            for i in range(self.dimension):
+            for i in range(self.tsp.n):
                 genes.append(0)
             self.pop.append(genes)
             self.inter_pop.append(genes)
 
     def create_initial_pop(self):
         for i in range(self.npop):
-            for j in range(self.dimension):
-                self.pop[i][j] = random.uniform(self.xmin, self.xmax)
 
-    def get_fo(self, x):
-        n = float(len(x))
-        f_exp = -0.2 * math.sqrt(1/n * sum(np.power(x, 2)))
+            in_path = list()
+            for k in range(self.tsp.n):
+                in_path.append(False)
 
-        t = 0
-        for i in range(0, len(x)):
-            t += np.cos(2 * math.pi * x[i])
+            j = 0
+            while j < self.tsp.n:
+                node = random.randint(0, self.tsp.n-1)
+                if in_path[node] == True:
+                    continue
+                self.pop[i][j] = node
+                in_path[node] = True
+                j += 1
 
-        s_exp = 1.0/n * t
-        f = -20 * math.exp(f_exp) - math.exp(s_exp) + 20 + math.exp(1)
+    def get_fo(self, path):
+        total = 0
+        for p in range(len(path)):
+            if p != (len(path)-1):
+                total += self.tsp.get_distance(path[p], path[p+1])
+        try:
+            total += self.tsp.get_distance(path[len(path)-1], path[0])
+        except:
+            return 0
 
-        return f
+        return total
 
     def evaluate_pop(self, pop):
         fit = list()
@@ -91,10 +97,12 @@ class AG:
 
     def get_parents(self, fit):
         parents = list()
-        for i in range(0, self.npop, 2):
+        n_parents = 0
+        while n_parents < self.npop:
             first_parent, second_parent = self.roullet(fit)
             parents.append(first_parent)
             parents.append(second_parent)
+            n_parents += 2
 
         return parents
 
@@ -111,72 +119,101 @@ class AG:
 
         return min_fit, fit.index(min_fit)
 
-    def check_u_value(self, u):
-        if u < -2:
-            return -2
-        elif u > 2:
-            return 2
+    def cross(self, first_parent, second_parent):
+        children = list()
+        for i in range(self.tsp.n):
+            children.append(-1)
 
-        return u
+        delta = 0
+        first_slice = 0
+        second_slice = 0
+        while delta == 0:
+            first_slice = random.randint(0, self.tsp.n-1)
+            second_slice = random.randint(first_slice, self.tsp.n-1)
+            delta = second_slice - first_slice
+
+        children[first_slice:second_slice] = first_parent[first_slice:second_slice]
+        order_parent = list()
+        for gene in second_parent:
+            if (gene in children) == False:
+                order_parent.append(gene)
+
+        order = 0
+        for j in range(second_slice, self.tsp.n):
+            children[j] = order_parent[order]
+            order += 1
+
+        for j in range(0, first_slice):
+            children[j] = order_parent[order]
+            order += 1
+
+        return children
 
     def crossover(self, parents, fit):
         children = 0
-        first_child = list()
-        second_child = list()
-        for i in range(self.dimension):
-            first_child.append(i)
-            second_child.append(i)
 
         for i in range(0, len(parents), 2):
-            X = self.pop[parents[i]]
-            Y = self.pop[parents[i+1]]
+            first_parent = self.pop[parents[i]]
+            second_parent = self.pop[parents[i+1]]
 
-            if (1/fit[parents[i]]) < (1/fit[parents[i+1]]):
-                X = self.pop[parents[i+1]]
-                Y = self.pop[parents[i]]
+            first_children = self.cross(first_parent, second_parent)
+            second_children = self.cross(second_parent, first_parent)
 
             if random.uniform(0, 1) <= self.pc:
-                for j in range(self.dimension):
-                    d = abs((X[j] - Y[j]))
-                    if X[j] <= Y[j]:
-                        u = random.uniform(X[j]-self.alpha*d, Y[j]+self.beta*d)
-                        u = self.check_u_value(u)
-                        first_child[j] = u
-                        u = random.uniform(X[j]-self.alpha*d, Y[j]+self.beta*d)
-                        u = self.check_u_value(u)
-                        second_child[j] = u
-                    else:
-                        u = random.uniform(Y[j]-self.beta*d, X[j]+self.alpha*d)
-                        u = self.check_u_value(u)
-                        first_child[j] = u
-                        u = random.uniform(Y[j]-self.beta*d, X[j]+self.alpha*d)
-                        u = self.check_u_value(u)
-                        second_child[j] = u
-                self.inter_pop[children] = first_child
-                self.inter_pop[children+1] = second_child
+                self.inter_pop[children] = first_children
+                self.inter_pop[children+1] = second_children
             else:
-                self.inter_pop[children] = X
-                self.inter_pop[children+1] = Y
+                self.inter_pop[children] = first_parent
+                self.inter_pop[children+1] = second_parent
 
             children += 2
 
     def mutation(self):
         for individual in self.inter_pop:
             value = random.uniform(0, 1)
-            if value <= self.pm:
-                pos = random.randint(0, len(individual)-1)
-                individual[pos] = random.uniform(self.xmin, self.xmax)
+            if self.high_mutation_interation == 0:
+                if value <= self.pm:
+                    i = -1
+                    j = -1
+                    while i == j:
+                        i = random.randint(0, len(individual)-1)
+                        j = random.randint(0, len(individual)-1)
+
+                    aux = individual[i]
+                    individual[i] = individual[j]
+                    individual[j] = aux
+            else:
+                #print('Alta mutação!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                if value <= 0.2:
+                    i = -1
+                    j = -1
+                    while i == j:
+                        i = random.randint(0, len(individual)-1)
+                        j = random.randint(0, len(individual)-1)
+
+                    aux = individual[i]
+                    individual[i] = individual[j]
+                    individual[j] = aux
+                    self.high_mutation_interation += 1
 
     def get_elite(self, g, fit):
         best_fit, p_best = self.get_best_fit(fit)
 
         if g == 0:
-            self.elite = self.pop[p_best]
+            self.elite = self.pop[p_best].copy()
             self.fit_elite = best_fit
         else:
             if best_fit < self.fit_elite:
-                self.elite = self.pop[p_best]
+                self.elite = self.pop[p_best].copy()
                 self.fit_elite = best_fit
+            else:
+                self.stagnation += 1
+                if self.stagnation == 500:
+                    self.stagnation = 0
+                    self.high_mutation_interation = 1
+
+                if self.high_mutation_interation == 4:
+                    self.high_mutation_interation = 0
 
         pos = random.randint(0, self.npop-1)
         self.pop[pos] = self.elite
@@ -186,10 +223,6 @@ class AG:
         gen_statics["Media"] = np.median(fit)
         gen_statics["DSVP"] = np.std(fit)
         statics_dict[str(gen)] = gen_statics
-
-    def get_final_statics(self, statics_dict, history):
-        for h in history:
-            statics_dict[str(h[1]) + '_best'] = h[0]
 
     def init(self):
         self.create_initial_pop()
@@ -202,24 +235,22 @@ class AG:
             parents = self.get_parents(fit)
             self.crossover(parents=parents, fit=fit)
             self.mutation()
+            self.get_parcial_statics(statics_dict, generation, fit)
             self.pop = self.inter_pop
             fit = self.evaluate_pop(self.pop)
-            self.get_parcial_statics(statics_dict, generation, fit)
             if self.has_elite == 1:
                 self.get_elite(generation, fit)
             fit = self.evaluate_pop(self.pop)
             best_fit, _ = self.get_best_fit(fit)
             history.append((best_fit, generation))
-
+            '''
             print('-' * 25)
             print('Geração = ' + str(generation))
             print('Elite = ' + str(self.fit_elite))
             print('Melhor sol da Geração = ' + str(best_fit))
             print('-' * 25)
-            input('OK>')
-
+            # input('OK>')
+            '''
             generation += 1
-
-        self.get_final_statics(statics_dict, history)
 
         return history, statics_dict

@@ -36,7 +36,7 @@ except:
     has_elite = 1
     print('Erro nos parâmetros - Set default')
 
-for execution in range(10):
+for execution in range(1):
 
     print('-'*30)
     print('Inicializando Execução de número ' + str(execution))
